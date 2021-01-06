@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+
+# Check required binaries: curl
+if [[ -z $(which curl) ]]; then
+  echo "curl not installed; exit."
+  exit 1
+fi
+
+ProgName=$(basename $0)
+
+# functions:
+
+# _run
+# _help
+
+# _schema
+# _schema_help
+# _schema_types
+# _schema_show
+# _schema_version
+
+# _subject
+# _subject_help
+# _subject_version
+# _subject_version_help
+# _subject_version_list
+# _subject_version_show
+# _subject_version_delete
+# _subject_version_ref
+
+# _subject_schema
+# _subject_schema_help
+# _subject_schema_show
+# _subject_schema_create
+
+# _subject_list
+# _subject_create
+# _subject_delete
+
+# _config
+
+function _run {
+  if [ "${DRY_RUN}" = "1" ]; then
+    echo $1
+  else
+    eval $1
+  fi
+}
+
+function _help {
+  echo "Usage: $ProgName <subcommand> [options]"
+  echo ""
+  echo "Subcommands:"
+  echo ""
+  echo "  schema     schema commands."
+  echo "  subject    subject commands."
+  echo "  config     show config."
+  echo ""
+  echo "For help with each subcommand, run:"
+  echo ""
+  echo "  $ProgName <subcommand> -h|--help"
+  echo ""
+  echo "For Rest API documentation, see:"
+  echo ""
+  echo "  https://docs.confluent.io/current/schema-registry/develop/api.html"
+  echo ""
+}
+
+function _schema {
+  subcommand=$1
+  case $subcommand in
+    "" | "-h" | "--help")
+      _schema_help
+      ;;
+    *)
+      shift
+      _schema_${subcommand} $@
+      if [ $? = 127 ]; then
+        echo "Error: '$subcommand' is not a known subcommand of $ProgName schema." >&2
+        echo "Run '$ProgName schema --help' for a list of known subcommands." >&2
+        return 1
+      fi
+      ;;
+  esac
+}
+
+function _schema_help {
+  echo "Usage: $ProgName schema <subcommand> [options]"
+  echo ""
+  echo "Subcommands:"
+  echo "  types     Get the schema types that are registered with Schema Registry."
+  echo "  show      Get the schema string identified by the input ID."
+  echo "  version   Get the subject-version pairs identified by the input ID."
+  echo ""
+}
+
+function _schema_types {
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/schemas/types"
+}
+
+function _schema_show {
+  [[ -z $1 ]] && echo "Usage: $ProgName schema show {schema-id}" && return 1
+
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/schemas/ids/$1"
+}
+
+function _schema_version {
+  [[ -z $1 ]] && echo "Usage: $ProgName schema version {schema-id}" && return 1
+  
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/schemas/ids/$1/versions"
+}
+
+function _subject {
+  subcommand=$1
+  case $subcommand in
+    "" | "-h" | "--help")
+      _subject_help
+      ;;
+    *)
+      shift
+      _subject_${subcommand} $@
+      if [ $? = 127 ]; then
+        echo "Error: '$subcommand' is not a known subcommand of $ProgName subject." >&2
+        echo "Run '$ProgName subject --help' for a list of known subcommands." >&2
+        return 1
+      fi
+      ;;
+  esac
+}
+
+function _subject_help {
+  echo "Usage: $ProgName subject <subcommand> [options]"
+  echo ""
+  echo "Subcommands:"
+  echo "  version    version management."
+  echo "  schema     schema management."
+  echo "  list       Get the subject-version pairs identified by the input ID."
+  echo "  create     Register a new schema under the specified subject. (Essentially, create a new schema.)"
+  echo "  delete     Deletes the specified subject and its associated compatibility level if registered."
+  echo ""
+}
+
+function _subject_version {
+  subcommand=$1
+  case $subcommand in
+    "" | "-h" | "--help")
+      _subject_version_help
+      ;;
+    *)
+      shift
+      _subject_version_${subcommand} $@
+      if [ $? = 127 ]; then
+        echo "Error: '$subcommand' is not a known subcommand of $ProgName subject version." >&2
+        echo "Run '$ProgName subject version --help' for a list of known subcommands." >&2
+        return 1
+      fi
+      ;;
+  esac
+}
+
+function _subject_version_help {
+  echo "Usage: $ProgName subject version <subcommand> [options]"
+  echo ""
+  echo "Subcommands:"
+  echo "  list   Get a list of versions registered under the specified subject."
+  echo "  show   Get a specific version of the schema registered under this subject."
+  echo "  delete Deletes a specific version of the schema registered under this subject."
+  echo "  ref    Get a list of IDs of schemas that reference the schema with the given subject and version."
+  echo ""
+}
+
+function _subject_version_list {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject version list {subject}" && return 1
+
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1/versions"
+}
+
+function _subject_version_show {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject version show {subject} {version}" && return 1
+  [[ -z $2 ]] && echo "Usage: $ProgName subject version show {subject} {version}" && return 1
+
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1/versions/$2"
+}
+
+function _subject_version_delete {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject version delete {subject} {version}" && return 1
+  [[ -z $2 ]] && echo "Usage: $ProgName subject version delete {subject} {version}" && return 1
+
+  _run "curl -s -X DELETE -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1/versions/$2"
+}
+
+function _subject_version_ref {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject version ref {subject} {version}" && return 1
+  [[ -z $2 ]] && echo "Usage: $ProgName subject version ref {subject} {version}" && return 1
+
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1/versions/$2/referencedby"
+}
+
+function _subject_schema {
+  subcommand=$1
+  case $subcommand in
+    "" | "-h" | "--help")
+      _subject_schema_help
+      ;;
+    *)
+      shift
+      _subject_schema_${subcommand} $@
+      if [ $? = 127 ]; then
+        echo "Error: '$subcommand' is not a known subcommand of $ProgName subject schema." >&2
+        echo "Run '$ProgName subject schema --help' for a list of known subcommands." >&2
+        return 1
+      fi
+      ;;
+  esac
+}
+
+function _subject_schema_help {
+  echo "Usage: $ProgName subject schema <subcommand> [options]"
+  echo ""
+  echo "Subcommands:"
+  echo "  show   Get the schema for the specified version of this subject."
+  echo "  create Register a new schema under the specified subject. (Essentially, create a new schema.)"
+  echo ""
+}
+
+function _subject_schema_show {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject schema show {subject} {version}" && return 1
+  [[ -z $2 ]] && echo "Usage: $ProgName subject schema show {subject} {version}" && return 1
+
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1/versions/$2/schema"
+}
+
+function _subject_schema_create {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject schema create {subject} {schema-json}" && return 1
+
+  if [[ -z $2 ]]; then
+    # schema-json is not provided; read from stdin.
+    if [[ -p /proc/self/fd/0 ]]; then
+      schema_json=$(cat /dev/stdin | tr -d '\n' | tr -d ' ')
+    else
+      echo "Usage: $ProgName subject schema create {subject} {schema-json}"
+      return 1
+    fi
+  else
+    # schema-json is provided
+    schema_json=$(echo $2 | tr -d '\n' | tr -d ' ')
+  fi
+
+  _run "curl -s -X POST -H \"Content-Type: application/vnd.schemaregistry.v1+json\" -d '{\"schema\":\"$(echo $schema_json | sed -e 's/"/\\"/g')\"}' http://$SCHEMA_REGISTRY_URL/subjects/$1/versions"
+}
+
+function _subject_list {
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects"
+}
+
+function _subject_create {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject create {subject} {schema-json}" && return 1
+
+  if [[ -z $2 ]]; then
+    # schema-json is not provided; read from stdin.
+    if [[ -p /proc/self/fd/0 ]]; then
+      schema_json=$(cat /dev/stdin | tr -d '\n' | tr -d ' ')
+    else
+      echo "Usage: $ProgName subject schema create {subject} {schema-json}"
+      return 1
+    fi
+  else
+    # schema-json is provided
+    schema_json=$(echo $2 | tr -d '\n' | tr -d ' ')
+  fi
+
+  _run "curl -s -X POST -H \"Content-Type: application/vnd.schemaregistry.v1+json\" -d '{\"schema\":\"$(echo $schema_json | sed -e 's/"/\\"/g')\"}' http://$SCHEMA_REGISTRY_URL/subjects/$1"
+}
+
+function _subject_delete {
+  [[ -z $1 ]] && echo "Usage: $ProgName subject delete {subject}" && return 1
+
+  _run "curl -s -X DELETE -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/subjects/$1"
+}
+
+function _config {
+  _run "curl -s -X GET -H \"Content-Type: application/vnd.schemaregistry.v1+json\" http://$SCHEMA_REGISTRY_URL/config"
+}
+
+SCHEMA_REGISTRY_HOST=${KAFKA_CONNECT_HOST:-localhost}
+SCHEMA_REGISTRY_PORT=${KAFKA_CONNECT_PORT:8080}
+KAFKA_CONNECT_URL=${KAFKA_CONNECT_URL:-${SCHEMA_REGISTRY_HOST}:${SCHEMA_REGISTRY_PORT}}
+
+DRY_RUN=${DRY_RUN:0}
+
+subcommand=$1
+case $subcommand in
+  "" | "-h" | "--help")
+    _help
+    ;;
+  *)
+    shift
+    _${subcommand} $@
+    if [ $? = 127 ]; then
+      echo "Error: '$subcommand' is not a known subcommand." >&2
+      echo "Run '$ProgName --help' for a list of known subcommands." >&2
+      exit 1
+    fi
+    ;;
+esac
+
